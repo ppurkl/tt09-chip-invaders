@@ -1,7 +1,7 @@
 `default_nettype none
 
 module tt_um_vga_example(
-  input  wire [3:0] ui_in,    // Dedicated inputs for player controls
+  input  wire [7:0] ui_in,    // Dedicated inputs for player controls
   output wire [7:0] uo_out,   // Dedicated outputs
   input  wire [7:0] uio_in,   // IOs: Input path
   output wire [7:0] uio_out,  // IOs: Output path
