@@ -297,7 +297,20 @@ end
 
 // Alien movement and shooting logic
 always @(posedge clk or negedge rst_n) begin
-  if (!rst_n || ui_in[3]) begin
+  if (!rst_n) begin
+    // Reset alien movement variables
+    alien_offset_x <= 0;
+    alien_offset_y <= 0;
+    alien_direction <= 1;
+    alien_move_counter <= 0;
+    alien_shoot_counter <= 0;
+
+    // Reset barrier hitpoints
+    barrier_hitpoints[0] <= 4'd10;
+    barrier_hitpoints[1] <= 4'd10;
+    barrier_hitpoints[2] <= 4'd10;
+    barrier_hitpoints[3] <= 4'd10;
+  end else if (ui_in[3]) begin
     // Reset alien movement variables
     alien_offset_x <= 0;
     alien_offset_y <= 0;
@@ -464,7 +477,40 @@ end
 wire fire_button_rising_edge = ui_in[2] && !prev_fire_button;
 
 always @(posedge clk or negedge rst_n) begin
-  if (!rst_n || ui_in[3] || game_over_flag || game_won_flag) begin
+  if (!rst_n) begin
+    // Reset shooter and bullet variables
+    shooter_x <= 253;
+    bullet_x <= 0;
+    bullet_y <= 0;
+    bullet_active <= 0;
+    movement_counter <= 0;
+    bullet_move_counter <= 0; // Reset bullet movement counter
+    // Reset score and game state flags
+    score <= 0;
+    game_won_flag <= 0;
+    game_over_flag <= 0;
+    player_health <= 2'b11;
+    aliens_remaining <= NUM_ROWS * NUM_COLUMNS;
+    // Reset alien health
+    for (i = 0; i < NUM_ROWS; i = i + 1) begin
+      for (j = 0; j < NUM_COLUMNS; j = j + 1) begin
+        alien_health[i][j] <= 1'b1;  // Set to 1 health point
+      end
+    end
+
+    alien_offset_x <= 0;
+    alien_offset_y <= 0;
+    alien_direction <= 1;
+    alien_move_counter <= 0;
+    prev_fire_button <= 0;  // Reset prev_fire_button
+    collision_occurred <= 0;
+
+    // Reset barrier hitpoints
+    barrier_hitpoints[0] <= 4'd10;
+    barrier_hitpoints[1] <= 4'd10;
+    barrier_hitpoints[2] <= 4'd10;
+    barrier_hitpoints[3] <= 4'd10;
+  end else if (ui_in[3] || game_over_flag || game_won_flag) begin
     // Reset shooter and bullet variables
     shooter_x <= 253;
     bullet_x <= 0;
