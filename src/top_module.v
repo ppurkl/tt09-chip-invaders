@@ -376,8 +376,8 @@ always @* begin
         // Check if the alien is alive
         if (alien_health[row][col]) begin 
           // Calculate the top-left position of each alien with movement offsets
-          alien_x = col * (ALIEN_WIDTH + ALIEN_SPACING_X) + 70 + alien_offset_x;
-          alien_y = row * (ALIEN_HEIGHT + ALIEN_SPACING_Y) + 150 + alien_offset_y;
+          alien_x = (10)'(col) * (ALIEN_WIDTH + ALIEN_SPACING_X) + 70 + alien_offset_x;
+          alien_y = (10)'(row) * (ALIEN_HEIGHT + ALIEN_SPACING_Y) + 150 + alien_offset_y;
 
           // Set alien sprite dimensions based on the row
           if (row == 0) begin
@@ -573,8 +573,8 @@ always @(posedge clk or negedge rst_n) begin
           for (col = 0; col < NUM_COLUMNS; col = col + 1) begin
             if (alien_health[row][col] && !collision_occurred) begin
               // Calculate the alien's position
-              alien_x = col * (ALIEN_WIDTH + ALIEN_SPACING_X) + 70 + alien_offset_x;
-              alien_y = row * (ALIEN_HEIGHT + ALIEN_SPACING_Y) + 150 + alien_offset_y;
+              alien_x = (10)'(col) * (ALIEN_WIDTH + ALIEN_SPACING_X) + 70 + alien_offset_x;
+              alien_y = (10)'(row) * (ALIEN_HEIGHT + ALIEN_SPACING_Y) + 150 + alien_offset_y;
 
               // Check for collision
               if (bullet_x + BULLET_WIDTH >= alien_x && bullet_x <= alien_x + ALIEN_WIDTH &&
@@ -728,10 +728,10 @@ wire shooter_pixel = (
 
 // Split the score into 3 digits (assuming the score is a maximum of 990)
 always @* begin
-  digit0 = score % 10;          // Least significant digit
-  digit1 = (score / 10) % 10;   // Middle digit
-  digit2 = (score / 100) % 10;  // Most significant digit
-  digit_health = player_health; 
+  digit0 = (4)'((32)'(score) % 10);          // Least significant digit
+  digit1 = (4)'(((32)'(score) / 10) % 10);   // Middle digit
+  digit2 = (4)'(((32)'(score) / 100) % 10);  // Most significant digit
+  digit_health = (4)'(player_health); 
 end
 
 // Function to render a digit using the 7-segment display
@@ -783,8 +783,8 @@ always @* begin
     if (pix_x >= HEART_X && pix_x < HEART_X + 16 && 
         pix_y >= HEART_Y && pix_y < HEART_Y + 16) begin
       // Get the sprite's x and y positions within the 16x16 grid
-      heart_sprite_x = pix_x - HEART_X;
-      heart_sprite_y = pix_y - HEART_Y;
+      heart_sprite_x = (32)'(pix_x) - HEART_X;
+      heart_sprite_y = (32)'(pix_y) - HEART_Y;
 
       // If the sprite bit is set, we have a heart pixel
       if (heart_sprite[heart_sprite_y][heart_sprite_x])
@@ -797,8 +797,8 @@ always @* begin
     if (pix_x >= TROPHY_X && pix_x < TROPHY_X + TROPHY_WIDTH &&
         pix_y >= TROPHY_Y && pix_y < TROPHY_Y + TROPHY_HEIGHT) begin
       // Calculate the sprite's relative x and y positions
-      trophy_sprite_x = pix_x - TROPHY_X;
-      trophy_sprite_y = pix_y - TROPHY_Y;
+      trophy_sprite_x = (32)'(pix_x) - TROPHY_X;
+      trophy_sprite_y = (32)'(pix_y) - TROPHY_Y;
       
       // Check if the current sprite bit is set
       if (trophy_sprite[trophy_sprite_y][trophy_sprite_x])
@@ -858,29 +858,29 @@ wire score_pixel =
      digit_segment(digit_segments[digit0], pix_x, pix_y, DIGIT0_X, DIGIT_Y));
 
 // VGA Output Assignments
-assign R = video_active ? (
+assign R = video_active ? (2)'(
     (alien_pixel ? alien_color[2] : 1'b0) ||
     (bullet_pixel ? 1'b1 : 1'b0) ||
     (score_pixel ? 1'b1 : 1'b0) ||
     (health_pixel ? 1'b1 : 1'b0) ||
     (heart_pixel ? 1'b1 : 1'b0) ||
     (trophy_pixel ? 1'b1 : 1'b0)
-) : 1'b0;
+) : 2'b0;
 
-assign G = video_active ? (
+assign G = video_active ? (2)'(
     (alien_pixel ? alien_color[1] : 1'b0) ||
     (bullet_pixel ? 1'b1 : 1'b0) ||
     (shooter_pixel ? 1'b1 : 1'b0) ||
     (trophy_pixel ? 1'b1 : 1'b0) ||
     (barrier_pixel ? 1'b1 : 1'b0) // Added barrier_pixel
-) : 1'b0;
+) : 2'b0;
 
-assign B = video_active ? (
+assign B = video_active ? (2)'(
     (alien_pixel ? alien_color[0] : 1'b0) ||
     (bullet_pixel ? 1'b1 : 1'b0) ||
     (shooter_pixel ? 1'b1 : 1'b0) ||
     (health_pixel ? 1'b1 : 1'b0)
-) : 1'b0;
+) : 2'b0;
 
 // State Machine Implementation
 
