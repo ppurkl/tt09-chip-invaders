@@ -417,8 +417,6 @@ always @* begin
   end
 end
 
-reg collision_occurred;
-
 // ----- Movement Direction Tracking Start -----
 // Define movement direction states
 localparam [1:0] 
@@ -503,7 +501,6 @@ always @(posedge clk or negedge rst_n) begin
     alien_direction <= 1;
     alien_move_counter <= 0;
     prev_fire_button <= 0;  // Reset prev_fire_button
-    collision_occurred <= 0;
 
     // Reset barrier hitpoints
     barrier_hitpoints[0] <= 4'd10;
@@ -536,7 +533,6 @@ always @(posedge clk or negedge rst_n) begin
     alien_direction <= 1;
     alien_move_counter <= 0;
     prev_fire_button <= 0;  // Reset prev_fire_button
-    collision_occurred <= 0;
 
     // Reset barrier hitpoints
     barrier_hitpoints[0] <= 4'd10;
@@ -545,9 +541,6 @@ always @(posedge clk or negedge rst_n) begin
     barrier_hitpoints[3] <= 4'd10;
   end else begin
     if (current_state == PLAYING) begin
-      // Initialize collision_occurred at the start of the clock cycle
-      collision_occurred <= 0;
-
       // Bullet movement
       if (bullet_active) begin
         bullet_move_counter <= bullet_move_counter + 1;
@@ -564,84 +557,6 @@ always @(posedge clk or negedge rst_n) begin
         bullet_x <= shooter_x + 4;  // Fire from the center of the shooter
         bullet_y <= 460;            // Starting bullet position
         bullet_move_counter <= 0;   // Reset counter for the new bullet
-      end
-
-      // Collision Detection and Scoring
-      if (bullet_active) begin
-        // Check collision with aliens
-        for (row = 0; row < NUM_ROWS; row = row + 1) begin
-          for (col = 0; col < NUM_COLUMNS; col = col + 1) begin
-            if (alien_health[row][col] && !collision_occurred) begin
-              // Calculate the alien's position
-              alien_x = (10)'(col) * (ALIEN_WIDTH + ALIEN_SPACING_X) + 70 + alien_offset_x;
-              alien_y = (10)'(row) * (ALIEN_HEIGHT + ALIEN_SPACING_Y) + 150 + alien_offset_y;
-
-              // Check for collision
-              if (bullet_x + BULLET_WIDTH >= alien_x && bullet_x <= alien_x + ALIEN_WIDTH &&
-                  bullet_y <= alien_y + ALIEN_HEIGHT && bullet_y + BULLET_HEIGHT >= alien_y) begin  // Adjusted for bullet size
-
-                // Alien is destroyed upon first hit
-                alien_health[row][col] <= 1'b0;  // Set alien health to 0
-
-                // Deactivate the bullet
-                bullet_active <= 0;
-                bullet_y <= 0;
-                collision_occurred <= 1; // Prevent further collisions in this cycle
-
-                // Decrement aliens_remaining
-                aliens_remaining <= aliens_remaining - 1;
-
-                // Increment score based on the row
-                case (row)
-                  0: score <= score + 30;  // 1st row = 30 points
-                  1, 2: score <= score + 20;  // 2nd and 3rd row = 20 points
-                  3, 4: score <= score + 10;  // 4th and 5th row = 10 points
-                endcase
-              end
-            end
-          end
-        end
-
-        // ----- Barrier Collision Detection Start -----
-        if (bullet_active) begin
-          // Barrier 0 Collision
-          if (barrier_hitpoints[0] > 0 &&
-              bullet_x + BULLET_WIDTH >= barrier_x0 &&
-              bullet_x <= barrier_x0 + BARRIER_WIDTH &&
-              bullet_y <= barrier_y + BARRIER_HEIGHT &&
-              bullet_y + BULLET_HEIGHT >= barrier_y) begin
-            barrier_hitpoints[0] <= barrier_hitpoints[0] - 1; // Reduce barrier hitpoints
-            bullet_active <= 0; // Deactivate bullet
-          end
-          // Barrier 1 Collision
-          else if (barrier_hitpoints[1] > 0 &&
-                   bullet_x + BULLET_WIDTH >= barrier_x1 &&
-                   bullet_x <= barrier_x1 + BARRIER_WIDTH &&
-                   bullet_y <= barrier_y + BARRIER_HEIGHT &&
-                   bullet_y + BULLET_HEIGHT >= barrier_y) begin
-            barrier_hitpoints[1] <= barrier_hitpoints[1] - 1; // Reduce barrier hitpoints
-            bullet_active <= 0; // Deactivate bullet
-          end
-          // Barrier 2 Collision
-          else if (barrier_hitpoints[2] > 0 &&
-                   bullet_x + BULLET_WIDTH >= barrier_x2 &&
-                   bullet_x <= barrier_x2 + BARRIER_WIDTH &&
-                   bullet_y <= barrier_y + BARRIER_HEIGHT &&
-                   bullet_y + BULLET_HEIGHT >= barrier_y) begin
-            barrier_hitpoints[2] <= barrier_hitpoints[2] - 1; // Reduce barrier hitpoints
-            bullet_active <= 0; // Deactivate bullet
-          end
-          // Barrier 3 Collision
-          else if (barrier_hitpoints[3] > 0 &&
-                   bullet_x + BULLET_WIDTH >= barrier_x3 &&
-                   bullet_x <= barrier_x3 + BARRIER_WIDTH &&
-                   bullet_y <= barrier_y + BARRIER_HEIGHT &&
-                   bullet_y + BULLET_HEIGHT >= barrier_y) begin
-            barrier_hitpoints[3] <= barrier_hitpoints[3] - 1; // Reduce barrier hitpoints
-            bullet_active <= 0; // Deactivate bullet
-          end
-        end
-        // ----- Barrier Collision Detection End -----
       end
 
       // Check for game over
