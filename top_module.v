@@ -231,6 +231,7 @@ localparam BULLET_HEIGHT = 8;
 
 // ----- Barrier Definitions Start -----
 // Define barrier parameters
+localparam NUM_BARRIERS = 4;
 localparam BARRIER_WIDTH = 60;
 localparam BARRIER_HEIGHT = 30;
 
@@ -274,12 +275,25 @@ initial begin
     end
   end
 
+  // Initialize alien bullets
+  for (i = 0; i < MAX_ALIEN_BULLETS; i = i + 1) begin
+    alien_bullet_x[i] = 0;
+    alien_bullet_y[i] = 0;
+    alien_bullet_active[i] = 0;
+  end
+
   // Initialize barrier hitpoints
   barrier_hitpoints[0] = 4'd10;
   barrier_hitpoints[1] = 4'd10;
   barrier_hitpoints[2] = 4'd10;
   barrier_hitpoints[3] = 4'd10;
 end
+
+// Alien bullet parameters
+localparam MAX_ALIEN_BULLETS = 5; // Maximum number of alien bullets on screen
+reg [9:0] alien_bullet_x [0:MAX_ALIEN_BULLETS-1];
+reg [9:0] alien_bullet_y [0:MAX_ALIEN_BULLETS-1];
+reg alien_bullet_active [0:MAX_ALIEN_BULLETS-1]; // Active status of each bullet
 
 // Counter for alien shooting
 reg [31:0] alien_shoot_counter;
@@ -334,10 +348,79 @@ always @(posedge clk or negedge rst_n) begin
         end
       end
     end
+
+    // Alien shooting logic
+    if (alien_shoot_counter >= 100000) begin
+      alien_shoot_counter <= 0; // Reset counter
+
+      // Randomly decide if an alien should shoot
+      if (lfsr[0]) begin // 50% chance
+        spawn_alien_bullet();
+      end
+    end
   end else begin
     // In GAME_WON or GAME_OVER states, stop alien movements
     alien_move_counter <= 0;
     alien_shoot_counter <= 0;
+  end
+end
+
+// Implement the spawn_alien_bullet task
+task spawn_alien_bullet;
+  integer col, row, i_temp;
+  begin
+    // Choose a random column
+    col = lfsr[3:0] % NUM_COLUMNS;
+
+    // Find the lowest alive alien in that column
+    for (row = NUM_ROWS-1; row >= 0; row = row - 1) begin
+      if (alien_health[row][col]) begin
+        // Find an inactive bullet slot
+        for (i_temp = 0; i_temp < MAX_ALIEN_BULLETS; i_temp = i_temp + 1) begin
+          if (!alien_bullet_active[i_temp]) begin
+            alien_bullet_active[i_temp] = 1;
+
+            // Calculate the alien's position
+            alien_x = col * (ALIEN_WIDTH + ALIEN_SPACING_X) + 70 + alien_offset_x;
+            alien_y = row * (ALIEN_HEIGHT + ALIEN_SPACING_Y) + 150 + alien_offset_y;
+
+            // Set bullet position
+            alien_bullet_x[i_temp] = alien_x + (ALIEN_WIDTH / 2) - (BULLET_WIDTH / 2);
+            alien_bullet_y[i_temp] = alien_y + ALIEN_HEIGHT;
+            i_temp = MAX_ALIEN_BULLETS; // Exit the loop after spawning a bullet
+          end
+        end
+        row = -1; // Exit the loop after finding the lowest alien
+      end
+    end
+  end
+endtask
+
+// Alien bullet movement
+reg [19:0] alien_bullet_move_counter;
+
+always @(posedge clk or negedge rst_n) begin
+  if (!rst_n || ui_in[3]) begin
+    // Reset alien bullet movement counter
+    alien_bullet_move_counter <= 0;
+  end else if (current_state == PLAYING) begin
+    alien_bullet_move_counter <= alien_bullet_move_counter + 1;
+
+    if (alien_bullet_move_counter >= 100000) begin // Adjust speed as needed
+      alien_bullet_move_counter <= 0;
+
+      // Move active alien bullets
+      for (i = 0; i < MAX_ALIEN_BULLETS; i = i + 1) begin
+        if (alien_bullet_active[i]) begin
+          alien_bullet_y[i] <= alien_bullet_y[i] + 2; // Move downwards
+
+          // Deactivate bullet if it goes off-screen
+          if (alien_bullet_y[i] > 480) begin // Assuming screen height is 480
+            alien_bullet_active[i] <= 0;
+          end
+        end
+      end
+    end
   end
 end
 
@@ -492,6 +575,16 @@ always @(posedge clk or negedge rst_n) begin
     prev_fire_button <= 0;  // Reset prev_fire_button
     collision_occurred <= 0;
 
+    // Reset alien bullets
+    for (i = 0; i < MAX_ALIEN_BULLETS; i = i + 1) begin
+      alien_bullet_x[i] <= 0;
+      alien_bullet_y[i] <= 0;
+      alien_bullet_active[i] <= 0;
+    end
+    alien_shoot_counter <= 0;
+    alien_bullet_move_counter <= 0;
+    lfsr <= 16'hACE1; // Reset LFSR seed
+
     // Reset barrier hitpoints
     barrier_hitpoints[0] <= 4'd10;
     barrier_hitpoints[1] <= 4'd10;
@@ -598,6 +691,59 @@ always @(posedge clk or negedge rst_n) begin
         // ----- Barrier Collision Detection End -----
       end
 
+      // Collision Detection: Alien Bullets and Player & Barriers
+      for (i = 0; i < MAX_ALIEN_BULLETS; i = i + 1) begin
+        if (alien_bullet_active[i]) begin
+          // Check if alien bullet hits the shooter
+          if (alien_bullet_x[i] + BULLET_WIDTH >= shooter_x && alien_bullet_x[i] <= shooter_x + SHOOTER_WIDTH && // Shooter width
+              alien_bullet_y[i] + BULLET_HEIGHT >= 460 && alien_bullet_y[i] <= 470) begin // Shooter Y position
+            // Bullet hits the shooter
+            alien_bullet_active[i] <= 0; // Deactivate bullet
+            if (player_health > 0) begin
+              player_health <= player_health - 1; // Decrease player health
+            end
+          end else begin
+            // Check collision with barriers
+            // Barrier 0
+            if (barrier_hitpoints[0] > 0 &&
+                alien_bullet_x[i] + BULLET_WIDTH >= barrier_x0 &&
+                alien_bullet_x[i] <= barrier_x0 + BARRIER_WIDTH &&
+                alien_bullet_y[i] + BULLET_HEIGHT >= barrier_y &&
+                alien_bullet_y[i] <= barrier_y + BARRIER_HEIGHT) begin
+              barrier_hitpoints[0] <= barrier_hitpoints[0] - 1; // Reduce barrier hitpoints
+              alien_bullet_active[i] <= 0; // Deactivate bullet
+            end
+            // Barrier 1
+            else if (barrier_hitpoints[1] > 0 &&
+                     alien_bullet_x[i] + BULLET_WIDTH >= barrier_x1 &&
+                     alien_bullet_x[i] <= barrier_x1 + BARRIER_WIDTH &&
+                     alien_bullet_y[i] + BULLET_HEIGHT >= barrier_y &&
+                     alien_bullet_y[i] <= barrier_y + BARRIER_HEIGHT) begin
+              barrier_hitpoints[1] <= barrier_hitpoints[1] - 1; // Reduce barrier hitpoints
+              alien_bullet_active[i] <= 0; // Deactivate bullet
+            end
+            // Barrier 2
+            else if (barrier_hitpoints[2] > 0 &&
+                     alien_bullet_x[i] + BULLET_WIDTH >= barrier_x2 &&
+                     alien_bullet_x[i] <= barrier_x2 + BARRIER_WIDTH &&
+                     alien_bullet_y[i] + BULLET_HEIGHT >= barrier_y &&
+                     alien_bullet_y[i] <= barrier_y + BARRIER_HEIGHT) begin
+              barrier_hitpoints[2] <= barrier_hitpoints[2] - 1; // Reduce barrier hitpoints
+              alien_bullet_active[i] <= 0; // Deactivate bullet
+            end
+            // Barrier 3
+            else if (barrier_hitpoints[3] > 0 &&
+                     alien_bullet_x[i] + BULLET_WIDTH >= barrier_x3 &&
+                     alien_bullet_x[i] <= barrier_x3 + BARRIER_WIDTH &&
+                     alien_bullet_y[i] + BULLET_HEIGHT >= barrier_y &&
+                     alien_bullet_y[i] <= barrier_y + BARRIER_HEIGHT) begin
+              barrier_hitpoints[3] <= barrier_hitpoints[3] - 1; // Reduce barrier hitpoints
+              alien_bullet_active[i] <= 0; // Deactivate bullet
+            end
+          end
+        end
+      end
+
       // Check for game over
       if (player_health == 0 && !game_over_flag) begin
         game_over_flag <= 1;
@@ -672,6 +818,23 @@ end
 wire bullet_pixel = bullet_active && 
                     (pix_x >= bullet_x && pix_x < bullet_x + BULLET_WIDTH &&
                      pix_y >= bullet_y && pix_y < bullet_y + BULLET_HEIGHT);
+
+// Alien bullet rendering
+wire alien_bullet_pixel;
+reg alien_bullet_pixel_reg;
+
+always @* begin
+  alien_bullet_pixel_reg = 0;
+  for (i = 0; i < MAX_ALIEN_BULLETS; i = i + 1) begin
+    if (alien_bullet_active[i] &&
+        pix_x >= alien_bullet_x[i] && pix_x < alien_bullet_x[i] + BULLET_WIDTH &&
+        pix_y >= alien_bullet_y[i] && pix_y < alien_bullet_y[i] + BULLET_HEIGHT) begin
+      alien_bullet_pixel_reg = 1;
+    end
+  end
+end
+
+assign alien_bullet_pixel = alien_bullet_pixel_reg;
 
 // Shooter drawing logic
 wire shooter_pixel = (
@@ -815,6 +978,7 @@ wire score_pixel =
 assign R = video_active ? (
     (alien_pixel ? alien_color[2] : 1'b0) ||
     (bullet_pixel ? 1'b1 : 1'b0) ||
+    (alien_bullet_pixel ? 1'b1 : 1'b0) || // Alien bullet is red
     (score_pixel ? 1'b1 : 1'b0) ||
     (health_pixel ? 1'b1 : 1'b0) ||
     (heart_pixel ? 1'b1 : 1'b0) ||
@@ -834,6 +998,7 @@ assign B = video_active ? (
     (bullet_pixel ? 1'b1 : 1'b0) ||
     (shooter_pixel ? 1'b1 : 1'b0) ||
     (health_pixel ? 1'b1 : 1'b0)
+    // Alien bullet is red; no need to add to Blue channel
 ) : 1'b0;
 
 // State Machine Implementation
